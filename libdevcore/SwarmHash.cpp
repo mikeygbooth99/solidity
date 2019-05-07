@@ -20,6 +20,7 @@
 #include <libdevcore/SwarmHash.h>
 
 #include <libdevcore/Keccak256.h>
+#include <libdevcore/Assertions.h>
 
 using namespace std;
 using namespace dev;
@@ -61,9 +62,52 @@ h256 swarmHashIntermediate(string const& _input, size_t _offset, size_t _length)
 	return swarmHashSimple(ref, _length);
 }
 
+h256 bmtHash(bytesConstRef _data)
+{
+	if (_data.size() <= 64)
+		return keccak256(_data);
+
+	size_t midPoint = _data.size() / 2;
+	return keccak256(
+		bmtHash(_data.cropped(0, midPoint)).asBytes() +
+		bmtHash(_data.cropped(midPoint)).asBytes()
+	);
+}
+
+h256 chunkHash(bytesConstRef const _data)
+{
+	bytes dataToHash;
+	if (_data.size() <= 0x1000)
+	{
+		dataToHash = _data.toBytes();
+		dataToHash.resize(0x1000, 0);
+		dataToHash = bmtHash(&dataToHash).asBytes();
+	}
+	else
+	{
+		size_t maxRepresentedSize = 0x1000;
+		while (maxRepresentedSize * (0x1000 / 32) < _data.size())
+			maxRepresentedSize *= (0x1000 / 32);
+		for (size_t i = 0; i < _data.size(); i += maxRepresentedSize)
+		{
+			size_t size = std::min(maxRepresentedSize, _data.size() - i);
+			dataToHash += chunkHash(_data.cropped(i, size)).asBytes();
+		}
+	}
+	return keccak256(toLittleEndian(_data.size()) + std::move(dataToHash));
+}
+
 }
 
 h256 dev::swarmHash(string const& _input)
 {
 	return swarmHashIntermediate(_input, 0, _input.size());
+}
+
+
+h256 dev::bzzHash(bytes const& _input)
+{
+	if (_input.empty())
+		return h256{};
+	return chunkHash(&_input);
 }

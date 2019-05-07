@@ -22,6 +22,8 @@
 
 #include <test/Options.h>
 
+#include <libdevcore/Keccak256.h>
+
 using namespace std;
 
 namespace dev
@@ -34,6 +36,11 @@ BOOST_AUTO_TEST_SUITE(SwarmHash)
 string swarmHashHex(string const& _input)
 {
 	return toHex(swarmHash(_input).asBytes());
+}
+
+string bzzHashHex(bytes const& _input)
+{
+	return toHex(bzzHash(_input).asBytes());
 }
 
 BOOST_AUTO_TEST_CASE(test_zeros)
@@ -49,6 +56,23 @@ BOOST_AUTO_TEST_CASE(test_zeros)
 	BOOST_CHECK_EQUAL(swarmHashHex(string(0x80020, 0)), string("ee9ffca246e70d3704740ba4df450fa6988d14a1c2439c7e734c7a77a4eb6fd3"));
 	BOOST_CHECK_EQUAL(swarmHashHex(string(0x800020, 0)), string("78b90b20c90559fb904535181a7c28929ea2f30a2329dbc25232de579709f12f"));
 	BOOST_CHECK_EQUAL(swarmHashHex(string(2095104, 0)), string("a9958184589fc11b4027a4c233e777ebe2e99c66f96b74aef2a0638a94dd5439"));
+}
+
+BOOST_AUTO_TEST_CASE(bzz_hash_short)
+{
+	// Special case: 32 zero bytes
+	BOOST_CHECK_EQUAL(bzzHashHex(bytes()), toHex(bytes(32, 0)));
+	BOOST_CHECK_EQUAL(bzzHashHex(bytes(31, 0)), "36fe2d14c5fe9ed380dc67afd9da6c5824bffcb01ac7972219c3cc3b1c8cd6b1");
+	BOOST_CHECK_EQUAL(bzzHashHex(asBytes("hello world")), "92672a471f4419b255d7cb0cf313474a6f5856fb347c5ece85fb706d644b630f");
+	BOOST_CHECK_EQUAL(bzzHashHex(bytes(64, 0)), "24090f674316c306ea2a98bdd08f042d6f776d0ae1c23b27fca52750a9c7d4e5");
+	BOOST_CHECK_EQUAL(bzzHashHex(bytes(65, 0)), "6ab1eaa91095215e30cacf47131d06ce5e9fc01611e406409705e190ee4440c6");
+	BOOST_CHECK_EQUAL(bzzHashHex(bytes(4096, 0)), "09ae927d0f3aaa37324df178928d3826820f3dd3388ce4aaebfc3af410bde23a");
+}
+
+BOOST_AUTO_TEST_CASE(bzz_hash_medium)
+{
+	BOOST_CHECK_EQUAL(bzzHashHex(bytes(4097, 0)), "c082943c4cb8a97c67947f290f5421cf4c61d021eb303c8df77de6fe208df516");
+	BOOST_CHECK_EQUAL(bzzHashHex(bytes(4096 * 128, 0)), "392edbfc185187265cb5d50c2507965f2bb99ce8c255a24d3eb14257e40f2e33");
 }
 
 BOOST_AUTO_TEST_SUITE_END()
