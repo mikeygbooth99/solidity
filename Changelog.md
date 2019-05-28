@@ -5,6 +5,7 @@ Language Features:
 
 
 Compiler Features:
+ * Yul Optimizer: Make the optimizer work for all dialects of Yul including eWasm.
 
 
 
