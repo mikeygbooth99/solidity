@@ -268,24 +268,19 @@ Object EVMToEWasmTranslator::run(Dialect const& _evmDialect, Object const& _obje
 
 	Object ret;
 	ret.code = make_shared<Block>(move(ast));
-	cout << "After word size transform: " << endl;
-	cout << ret.toString(false) << endl;
 	ret.analysisInfo = make_shared<AsmAnalysisInfo>();
 
 	ErrorList errors;
 	ErrorReporter errorReporter(errors);
 	AsmAnalyzer analyzer(*ret.analysisInfo, errorReporter, boost::none, WasmDialect::instance());
-	cout << "Analyzing..." << endl;
 	if (!analyzer.analyze(*ret.code))
 	{
 		// TODO the errors here are "wrong" because they have invalid source references!
 		string message;
 		for (auto const& err: errors)
 			message += langutil::SourceReferenceFormatter::formatErrorInformation(*err);
-		cout << "Oooops." << endl;
 		yulAssert(false, message);
 	}
-	cout << "done" << endl;
 
 	return ret;
 }
