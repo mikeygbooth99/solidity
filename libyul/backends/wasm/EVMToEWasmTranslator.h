@@ -31,7 +31,7 @@ struct Object;
 class EVMToEWasmTranslator: public ASTModifier
 {
 public:
-	static void run(Dialect const& _evmDialect, Object& _object);
+	static Object run(Dialect const& _evmDialect, Object const& _object);
 
 };
 

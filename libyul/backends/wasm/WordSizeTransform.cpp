@@ -18,6 +18,7 @@
 #include <libyul/AsmData.h>
 #include <libyul/backends/wasm/WordSizeTransform.h>
 #include <libyul/Utilities.h>
+#include <libyul/Dialect.h>
 
 #include <libdevcore/CommonData.h>
 
@@ -41,6 +42,10 @@ void WordSizeTransform::operator()(FunctionalInstruction& _ins)
 
 void WordSizeTransform::operator()(FunctionCall& _fc)
 {
+	if (BuiltinFunction const* fun = m_inputDialect.builtin(_fc.functionName.name))
+		if (fun->literalArguments)
+			return;
+
 	rewriteFunctionCallArguments(_fc.arguments);
 }
 
@@ -57,6 +62,18 @@ void WordSizeTransform::operator()(If& _if)
 void WordSizeTransform::operator()(Switch&)
 {
 	yulAssert(false, "Switch statement not implemented.");
+}
+
+void WordSizeTransform::operator()(ForLoop& _for)
+{
+	(*this)(_for.pre);
+	_for.condition = make_unique<Expression>(FunctionCall{
+		locationOf(*_for.condition),
+		Identifier{locationOf(*_for.condition), "or_bool"_yulstring}, // TODO make sure this is not used
+		expandValueToVector(*_for.condition)
+	});
+	(*this)(_for.post);
+	(*this)(_for.body);
 }
 
 void WordSizeTransform::operator()(Block& _block)
@@ -142,9 +159,9 @@ void WordSizeTransform::operator()(Block& _block)
 	);
 }
 
-void WordSizeTransform::run(Block& _ast, NameDispenser& _nameDispenser)
+void WordSizeTransform::run(Dialect const& _inputDialect, Block& _ast, NameDispenser& _nameDispenser)
 {
-	WordSizeTransform{_nameDispenser}(_ast);
+	WordSizeTransform{_inputDialect, _nameDispenser}(_ast);
 }
 
 void WordSizeTransform::rewriteVarDeclList(TypedNameList& _nameList)

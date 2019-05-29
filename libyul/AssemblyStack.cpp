@@ -94,7 +94,7 @@ void AssemblyStack::optimize()
 	if (!m_optimiserSettings.runYulOptimiser)
 		return;
 
-	if (m_language != Language::StrictAssembly)
+	if (m_language != Language::StrictAssembly || m_language != Language::EWasm)
 		solUnimplemented("Optimizer for both loose assembly and Yul is not yet implemented");
 	solAssert(m_analysisSuccessful, "Analysis was not successful.");
 

@@ -646,26 +646,34 @@ TypedName Parser::parseTypedName()
 
 YulString Parser::expectAsmIdentifier()
 {
-	YulString name = YulString{currentLiteral()};
-	if (m_dialect.flavour == AsmFlavour::Yul)
+	YulString name;
+	switch (currentToken())
 	{
-		switch (currentToken())
-		{
-		case Token::Return:
-		case Token::Byte:
-		case Token::Address:
-		case Token::Bool:
-			advance();
-			return name;
-		default:
-			break;
-		}
+	case Token::Return:
+		name = "return"_yulstring;
+		break;
+	case Token::Byte:
+		name = "byte"_yulstring;
+		break;
+	case Token::Address:
+		name = "address"_yulstring;
+		break;
+	case Token::Bool:
+		name = "bool"_yulstring;
+		break;
+	case Token::Identifier:
+		name = YulString{currentLiteral()};
+		break;
+	default:
+		expectToken(Token::Identifier);
+		break;
 	}
-	else if (m_dialect.builtin(name))
+
+	if (m_dialect.builtin(name))
 		fatalParserError("Cannot use builtin function name \"" + name.str() + "\" as identifier name.");
-	else if (instructions().count(name.str()))
-		fatalParserError("Cannot use instruction names for identifier names.");
-	expectToken(Token::Identifier);
+	else if (m_dialect.flavour == AsmFlavour::Loose && instructions().count(name.str()))
+		fatalParserError("Cannot use instruction name \"" + name.str() + "\" as identifier name.");
+	advance();
 	return name;
 }
 

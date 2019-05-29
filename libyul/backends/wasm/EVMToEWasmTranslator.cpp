@@ -25,12 +25,17 @@
 #include <libyul/optimiser/ExpressionSplitter.h>
 #include <libyul/optimiser/FunctionGrouper.h>
 #include <libyul/optimiser/MainFunction.h>
+#include <libyul/optimiser/FunctionHoister.h>
+#include <libyul/optimiser/Disambiguator.h>
 
 #include <libyul/AsmParser.h>
+#include <libyul/AsmAnalysis.h>
+#include <libyul/AsmAnalysisInfo.h>
 #include <libyul/Object.h>
 
 #include <liblangutil/ErrorReporter.h>
 #include <liblangutil/Scanner.h>
+#include <liblangutil/SourceReferenceFormatter.h>
 
 using namespace std;
 using namespace dev;
@@ -78,7 +83,6 @@ function split(x) -> hi, lo {
 // Multiplies two 64 bit values resulting in a 128 bit
 // value split into two 64 bit values.
 function mul_64x64_128(x, y) -> hi, lo {
-{
 	let xh, xl := split(x)
 	let yh, yl := split(y)
 
@@ -88,37 +92,21 @@ function mul_64x64_128(x, y) -> hi, lo {
 	let t3 := i64.mul(xh, yh)
 
 	let t0h, t0l := split(t0)
-	// TODO what about the overflow here?
 	let u1 := i64.add(t1, t0h)
-	let u1h, uil := split(u1)
+	let u1h, u1l := split(u1)
 	let u2 := i64.add(t2, u1l)
 
 	lo := i64.or(i64.shl(u2, 32), t0l)
 	hi := i64.add(t3, i64.add(i64.shr_u(u2, 32), u1h))
 }
 function mul_128x128_256(x1, x2, y1, y2) -> r1, r2, r3, r4 {
-{
-	let xh, xl := split(x)
-	let yh, yl := split(y)
-
-	let t0 := i64.mul(xl, yl)
-	let t1 := i64.mul(xh, yl)
-	let t2 := i64.mul(xl, yh)
-	let t3 := i64.mul(xh, yh)
-
-	let t0h, t0l := split(t0)
-	let u1 := i64.add(t1, t0h)
-	let u1h, uil := split(u1)
-	let u2 := i64.add(t2, u1l)
-
-	lo := i64.or(i64.shl(u2, 32), t0l)
-	hi := i64.add(t3, i64.add(i64.shr_u(u2, 32), u1h))
+	// TODO
 }
 function mul(x1, x2, x3, x4, y1, y2, y3, y4) -> r1, r2, r3, r4 {
 	// TODO
 }
 function byte(x1, x2, x3, x4, y1, y2, y3, y4) -> r1, r2, r3, r4 {
-	if i64.eqz(i64.or(i64.or(x1, x2), x3), 0) {
+	if i64.eqz(i64.or(i64.or(x1, x2), x3)) {
 		let component
 		switch i64.div_u(x4, 8)
 		case 0 { component := y1 }
@@ -126,7 +114,7 @@ function byte(x1, x2, x3, x4, y1, y2, y3, y4) -> r1, r2, r3, r4 {
 		case 2 { component := y3 }
 		case 3 { component := y4 }
 		x4 := i64.mul(i64.rem_u(x4, 8), 8)
-		r4 := shr_u(component, i64.sub(56, x4))
+		r4 := i64.shr_u(component, i64.sub(56, x4))
 		r4 := i64.and(0xff, r4)
 	}
 }
@@ -166,7 +154,17 @@ function eq(x1, x2, x3, x4, y1, y2, y3, y4) -> r1, r2, r3, r4 {
 		}
 	}
 }
+
+
+// TODO
+function lt(x1, x2, x3, x4, y1, y2, y3, y4) -> z1, z2, z3, z4 {}
 function pop(x1, x2, x3, x4) {}
+function mstore(x1, x2, x3, x4, y1, y2, y3, y4) {}
+function codecopy(x1, x2, x3, x4, y1, y2, y3, y4, z1, z2, z3, z4) {
+	datacopy(x1, x2, x3, x4, y1, y2, y3, y4, z1, z2, z3, z4)
+}
+function return(x1, x2, x3, x4, y1, y2, y3, y4) {}
+function revert(x1, x2, x3, x4, y1, y2, y3, y4) {}
 })"};
 
 /*
@@ -242,25 +240,53 @@ Block parsePolyfill()
 	ErrorReporter errorReporter(errors);
 	shared_ptr<Scanner> scanner{make_shared<Scanner>(CharStream(polyfill, ""))};
 	shared_ptr<Block> block = Parser(errorReporter, WasmDialect::instance()).parse(scanner, false);
-	yulAssert(errors.empty(), "");
+	if (!errors.empty())
+	{
+		string message;
+		for (auto const& err: errors)
+			message += langutil::SourceReferenceFormatter::formatErrorInformation(*err);
+		yulAssert(false, message);
+	}
 	return move(*block);
 }
 }
-void EVMToEWasmTranslator::run(Dialect const& _evmDialect, Object& _object)
+Object EVMToEWasmTranslator::run(Dialect const& _evmDialect, Object const& _object)
 {
-	// TODO recurse, parse the polyfill only once
-	Block& code = *_object.code;
+	// TODO recurse, but parse the polyfill only once
 
 	// TODO first parse the polyfill and then rename all functions
 	// that clash with those in the polyfill.
 
-	NameDispenser nameDispenser{_evmDialect, code};
-	FunctionGrouper{}(code);
-	MainFunction{}(code);
-	ExpressionSplitter{_evmDialect, nameDispenser}(code);
-	WordSizeTransform::run(code, nameDispenser);
-	code.statements += std::move(parsePolyfill().statements);
-	// TODO re-parse?
+	Block ast = boost::get<Block>(Disambiguator(_evmDialect, *_object.analysisInfo)(*_object.code));
+	NameDispenser nameDispenser{_evmDialect, ast};
+	FunctionHoister{}(ast);
+	FunctionGrouper{}(ast);
+	MainFunction{}(ast);
+	ExpressionSplitter{_evmDialect, nameDispenser}(ast);
+	WordSizeTransform::run(_evmDialect, ast, nameDispenser);
+	ast.statements += std::move(parsePolyfill().statements);
 
+	Object ret;
+	ret.code = make_shared<Block>(move(ast));
+	cout << "After word size transform: " << endl;
+	cout << ret.toString(false) << endl;
+	ret.analysisInfo = make_shared<AsmAnalysisInfo>();
+
+	ErrorList errors;
+	ErrorReporter errorReporter(errors);
+	AsmAnalyzer analyzer(*ret.analysisInfo, errorReporter, boost::none, WasmDialect::instance());
+	cout << "Analyzing..." << endl;
+	if (!analyzer.analyze(*ret.code))
+	{
+		// TODO the errors here are "wrong" because they have invalid source references!
+		string message;
+		for (auto const& err: errors)
+			message += langutil::SourceReferenceFormatter::formatErrorInformation(*err);
+		cout << "Oooops." << endl;
+		yulAssert(false, message);
+	}
+	cout << "done" << endl;
+
+	return ret;
 }
 
