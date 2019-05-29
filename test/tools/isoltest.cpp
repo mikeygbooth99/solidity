@@ -191,7 +191,9 @@ TestTool::Result TestTool::process()
 	catch (std::exception const& _e)
 	{
 		AnsiColorized(cout, formatted, {BOLD, RED}) <<
-			"Exception during test: " << _e.what() << endl;
+			"Exception during test: " <<
+			(_e.what() ? string(_e.what()) : string{}) <<
+			endl;
 		return Result::Exception;
 	}
 	catch (...)

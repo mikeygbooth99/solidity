@@ -984,6 +984,13 @@ bool CommandLineInterface::processInput()
 		serr() << "Exception during compilation: " << boost::diagnostic_information(_exception) << endl;
 		return false;
 	}
+	catch (std::exception const& _e)
+	{
+		serr() << "Unknown exception during compilation" << (
+			_e.what() ? ": " + string(_e.what()) : string{}
+		) << endl;
+		return false;
+	}
 	catch (...)
 	{
 		serr() << "Unknown exception during compilation." << endl;
@@ -1274,6 +1281,14 @@ bool CommandLineInterface::assemble(
 			serr() << "Exception in assembler: " << boost::diagnostic_information(_exception) << endl;
 			return false;
 		}
+		catch (std::exception const& _e)
+		{
+			serr() <<
+				"Unknown exception during compilation" <<
+				(_e.what() ? ": " + string(_e.what()) : string{}) <<
+				endl;
+			return false;
+		}
 		catch (...)
 		{
 			serr() << "Unknown exception in assembler." << endl;
@@ -1322,6 +1337,13 @@ bool CommandLineInterface::assemble(
 		catch (Exception const& _exception)
 		{
 			serr() << "Exception while assembling: " << boost::diagnostic_information(_exception) << endl;
+			return false;
+		}
+		catch (std::exception const& _e)
+		{
+			serr() << "Unknown exception during compilation" << (
+				_e.what() ? ": " + string(_e.what()) : string{}
+			) << endl;
 			return false;
 		}
 		catch (...)
