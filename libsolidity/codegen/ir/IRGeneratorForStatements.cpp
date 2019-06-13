@@ -791,7 +791,50 @@ void IRGeneratorForStatements::endVisit(IndexAccess const& _indexAccess)
 		));
 	}
 	else if (baseType.category() == Type::Category::Array)
-		solUnimplementedAssert(false, "");
+	{
+		ArrayType const& arrayType = dynamic_cast<ArrayType const&>(baseType);
+		solAssert(_indexAccess.indexExpression(), "Index expression expected.");
+
+		switch (arrayType.location())
+		{
+			case DataLocation::Storage:
+			{
+				string slot = m_context.newYulVariable();
+				string offset = m_context.newYulVariable();
+
+				m_code <<
+					"let " <<
+					slot <<
+					", " <<
+					offset <<
+					" := " <<
+					m_utils.storageArrayIndexAccessFunction(arrayType) <<
+					"(" <<
+						m_utils.arrayDataAreaFunction(arrayType) <<
+						"(" <<
+							m_context.variable(_indexAccess.baseExpression()) <<
+						"), " <<
+						m_context.variable(*_indexAccess.indexExpression()) <<
+					")\n";
+
+					setLValue(_indexAccess, make_unique<IRStorageItem>(
+						m_context,
+						slot,
+						offset,
+						*_indexAccess.annotation().type
+					));
+
+				break;
+			}
+			case DataLocation::Memory:
+				solUnimplementedAssert(false, "");
+				break;
+			case DataLocation::CallData:
+				solUnimplementedAssert(false, "");
+				break;
+		}
+
+	}
 	else if (baseType.category() == Type::Category::FixedBytes)
 		solUnimplementedAssert(false, "");
 	else if (baseType.category() == Type::Category::TypeType)

@@ -678,6 +678,32 @@ string YulUtilFunctions::arrayDataAreaFunction(ArrayType const& _type)
 	});
 }
 
+string YulUtilFunctions::storageArrayIndexAccessFunction(ArrayType const& _type)
+{
+	string functionName = "storage_array_index_access_" + _type.identifier();
+	return m_functionCollector->createFunction(functionName, [&]() {
+		return Whiskers(R"(
+			function <functionName>(data, index) -> slot, offset {
+				<?multipleItemsPerSlot>
+				// TODO
+				<!multipleItemsPerSlot>
+					<?storageSizeNotOne>
+						index := mul(index, <storageSize>)
+					</storageSizeNotOne>
+					slot := add(data, index)
+					offset := 0
+				</multipleItemsPerSlot>
+			}
+		)")
+		("functionName", functionName)
+		("elementSize", to_string(_type.baseType()->storageBytes()))
+		("multipleItemsPerSlot", _type.baseType()->storageBytes() <= 16)
+		("storageSizeNotOne", _type.baseType()->storageSize() != 1)
+		("storageSize", _type.baseType()->storageSize().str())
+		.render();
+	});
+}
+
 string YulUtilFunctions::nextArrayElementFunction(ArrayType const& _type)
 {
 	solAssert(!_type.isByteArray(), "");

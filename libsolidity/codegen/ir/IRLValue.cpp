@@ -135,7 +135,7 @@ string IRStorageItem::storeValue(string const& _value, Type const& _sourceType) 
 
 string IRStorageItem::setToZero() const
 {
-	solUnimplemented("Delete for storage location not yet implemented");
+	return storeValue(m_context.utils().zeroValueFunction(*m_type) + "()", *m_type);
 }
 
 IRStorageArrayLength::IRStorageArrayLength(IRGenerationContext& _context, string const _slot, Type const* _type)
